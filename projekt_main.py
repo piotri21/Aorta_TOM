@@ -2,16 +2,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 import nrrd
 import vtk
+from vtk.util import numpy_support
 
-'''
-kod do ludzkiego wczytania danych
-data, header = nrrd.read('../DATA/Dongyang/D1/D1.nrrd')
+data, header = nrrd.read('../DATA/Dongyang/D1/D1.seg.nrrd')
 print(data.shape)
-'''
 
-reader = vtk.vtkNrrdReader()
-reader.SetFileName('../DATA/Dongyang/D1/D1.seg.nrrd')
-reader.Update()
+# Tutaj wstawić przetwarzanie danych, nazwać zmienną "processed_data"
+processed_data = data
+
+vtk_data = vtk.vtkImageData()
+vtk_data.SetDimensions(processed_data.shape)
+vtk_data.SetSpacing(header['space directions'][0][0], header['space directions'][1][1], header['space directions'][2][2])
+vtk_data.SetOrigin(header['space origin'][0], header['space origin'][1], header['space origin'][2])
+
+flat = data.ravel(order='F')
+vtk_array = numpy_support.numpy_to_vtk(num_array=flat, deep=True, array_type=vtk.VTK_FLOAT)
+vtk_data.GetPointData().SetScalars(vtk_array)
 
 colors = vtk.vtkNamedColors()
 colors.SetColor('aorta_red', [255, 30, 30, 255])
@@ -24,7 +30,7 @@ iren.SetRenderWindow(ren_win)
 ren_win.SetSize(640, 480)
 
 aorta_extractor = vtk.vtkMarchingCubes()
-aorta_extractor.SetInputConnection(reader.GetOutputPort())
+aorta_extractor.SetInputData(vtk_data)
 aorta_extractor.SetValue(0, 1.0)
 aorta_extractor.Update()
 
