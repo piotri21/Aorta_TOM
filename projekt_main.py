@@ -2,12 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import nrrd
 import vtk
-from vtk.util import numpy_support
+from vtkmodules.util import numpy_support
 
 data, header = nrrd.read('../DATA/Dongyang/D1/D1.seg.nrrd')
 print(data.shape)
 
-# Tutaj wstawić przetwarzanie danych, nazwać zmienną "processed_data"
+# Tutaj wstawić przetwarzanie danych, nazwać zmienną "processed_data", aby była zgodna z resztą kodu
 processed_data = data
 
 vtk_data = vtk.vtkImageData()
