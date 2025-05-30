@@ -2,15 +2,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 import nrrd
 import vtk
-from scipy.ndimage import binary_erosion
+from scipy.ndimage import binary_erosion, distance_transform_edt
+import skimage
+import scipy.ndimage
 from vtkmodules.util import numpy_support
 
 data, header = nrrd.read('../DATA/Dongyang/D1/D1.seg.nrrd')
 print(data.shape)
 
-# Tutaj wstawić przetwarzanie danych, nazwać zmienną "processed_data", aby była zgodna z resztą kodu
-processed_data = binary_erosion(data, iterations=10).astype(data.dtype)
+def process(data):
+    distance = distance_transform_edt(data)
+    skeleton = skimage.morphology.skeletonize(data)
 
+    return skeleton
+
+processed_data = process(data)
+    
 
 colors = vtk.vtkNamedColors()
 colors.SetColor('aorta_red', [255, 30, 30, 255])
@@ -63,7 +70,7 @@ a_camera.Azimuth(30.0)
 a_camera.Elevation(30.0)
 
 a_renderer.AddActor(create_actor(data, 'aorta_red', opacity=0.5))
-a_renderer.AddActor(create_actor(processed_data, 'white', opacity=1.0))
+a_renderer.AddActor(create_actor(scipy.ndimage.binary_dilation(processed_data, iterations=1), 'white', opacity=1.0))
 
 a_renderer.SetActiveCamera(a_camera)
 a_renderer.SetBackground(colors.GetColor3d('black'))
