@@ -11,9 +11,7 @@ data, header = nrrd.read('../DATA/Dongyang/D1/D1.seg.nrrd')
 print(data.shape)
 
 def process(data):
-    distance = distance_transform_edt(data)
     skeleton = skimage.morphology.skeletonize(data)
-
     return skeleton
 
 processed_data = process(data)
@@ -70,6 +68,8 @@ a_camera.Azimuth(30.0)
 a_camera.Elevation(30.0)
 
 a_renderer.AddActor(create_actor(data, 'aorta_red', opacity=0.5))
+
+#dilate the processed data to enhance visibility
 a_renderer.AddActor(create_actor(scipy.ndimage.binary_dilation(processed_data, iterations=1), 'white', opacity=1.0))
 
 a_renderer.SetActiveCamera(a_camera)
