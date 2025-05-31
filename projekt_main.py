@@ -27,7 +27,7 @@ df = pd.DataFrame({
 
 print(df.head())
 
-data, header = nrrd.read(df.raw_path[1])
+data, header = nrrd.read(df.seg_path[1])
 print(data.shape)
 
 def process(data):
