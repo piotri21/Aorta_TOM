@@ -10,6 +10,8 @@ import pandas as pd
 from pathlib import Path
 import networkx as nx
 
+
+
 # Tutaj potrzebujemy tylko posegmentowanych danych do walidacji modelu
 
 data_dir = Path('../DATA')
@@ -27,8 +29,8 @@ df = pd.DataFrame({
 
 print(df.head())
 
-data, header = nrrd.read(df.seg_path[1])
-#data, header = nrrd.read("../DATA/Dongyang/D1/D1.seg.nrrd")
+#data, header = nrrd.read(df.seg_path[1])
+data, header = nrrd.read("../DATA/Dongyang/D1/D1.seg.nrrd")
 print(data.shape)
 
 def process(data):
@@ -61,22 +63,27 @@ def process(data):
 
     # Szukamy dwóch najdalszych punktów na szkielecie (diameter)
     lengths = dict(nx.all_pairs_shortest_path_length(G))
+    pairs = []
+    for u in lengths:
+        for v in lengths[u]:
+            pairs.append((u, v, lengths[u][v]))
+    pairs = sorted(pairs, key=lambda x: x[2], reverse=True)
+
     max_len = 0
     ends = (None, None)
     found_path_through_thickest = False
-    
-    for u in lengths:
-        for v in lengths[u]:
-            if lengths[u][v] > max_len:
-                # Sprawdź, czy najgrubszy punkt leży na ścieżce między u i v
-                try:
-                    path_uv = nx.shortest_path(G, source=u, target=v)
-                    if thickest_point in path_uv:
-                        max_len = lengths[u][v]
-                        ends = (u, v)
-                        found_path_through_thickest = True
-                except nx.NetworkXNoPath:
-                    continue
+
+    for u, v, length in pairs:
+        if length > max_len:
+            try:
+                path_uv = nx.shortest_path(G, source=u, target=v)
+                if thickest_point in path_uv:
+                    print(f"ścieżka: {u} -> {v} o długości {length}")
+                    max_len = length
+                    ends = (u, v)
+                    found_path_through_thickest = True
+            except nx.NetworkXNoPath:
+                continue
 
     # Jeśli nie znaleziono ścieżki przechodzącej przez najgrubszy punkt
     if not found_path_through_thickest or ends[0] is None:
