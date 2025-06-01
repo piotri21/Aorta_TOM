@@ -48,6 +48,7 @@ def process(data):
                 0 <= neighbor[1] < skeleton.shape[1] and
                 0 <= neighbor[2] < skeleton.shape[2]):
                 if skeleton[neighbor]:
+                    #print(f"Adding edge from {pt} to {neighbor}")
                     G.add_edge(pt, neighbor)
 
     # Najgrubszy punkt
@@ -62,36 +63,29 @@ def process(data):
         thickest_point = tuple(skeleton_points[closest_idx])
 
     # Szukamy dwóch najdalszych punktów na szkielecie (diameter)
-    lengths = dict(nx.all_pairs_shortest_path_length(G))
-    pairs = []
-    for u in lengths:
-        for v in lengths[u]:
-            pairs.append((u, v, lengths[u][v]))
-    pairs = sorted(pairs, key=lambda x: x[2], reverse=True)
-
-    max_len = 0
-    ends = (None, None)
-    found_path_through_thickest = False
-
-    for u, v, length in pairs:
-        if length > max_len:
-            try:
-                path_uv = nx.shortest_path(G, source=u, target=v)
-                if thickest_point in path_uv:
-                    print(f"ścieżka: {u} -> {v} o długości {length}")
-                    max_len = length
-                    ends = (u, v)
-                    found_path_through_thickest = True
-            except nx.NetworkXNoPath:
-                continue
-
-    # Jeśli nie znaleziono ścieżki przechodzącej przez najgrubszy punkt
-    if not found_path_through_thickest or ends[0] is None:
-        print("Nie znaleziono ścieżki przechodzącej przez najgrubszy punkt!")
-        return np.zeros(data.shape, dtype=np.uint8)
+    #lengths = dict(nx.all_pairs_path_length(G))
+    ends = [pt for pt in G.nodes if len(list(G.neighbors(pt))) <= 2]
+    print(f"Znaleziono {len(ends)} końców szkieletu")
+    paths = []
+    for end1 in ends:
+        for end2 in ends:
+            if end1 != end2:
+                try:
+                    path = nx.shortest_path(G, source=end1, target=end2)
+                    paths.append(path)
+                except nx.NetworkXNoPath:
+                    continue
+    lognest_path_length = 0
+    print(f"Znaleziono {len(paths)} ścieżek pomiędzy końcami")
+    longest_ends = (None, None)
+    for path in paths:
+        if thickest_point in path:
+            if len(path) > lognest_path_length:
+                lognest_path_length = len(path)
+                longest_ends = (path[0], path[-1])
 
     # Najdłuższa ścieżka przechodząca przez najgrubszy punkt
-    path = nx.shortest_path(G, source=ends[0], target=ends[1])
+    path = nx.shortest_path(G, source=longest_ends[0], target=longest_ends[1])
 
     # Zamiana ścieżki na maskę 3D
     mask = np.zeros(data.shape, dtype=np.uint8)
@@ -100,8 +94,7 @@ def process(data):
     return mask
 
 
-processed_data = process(data)
-    
+processed_data = process(data) 
 
 colors = vtk.vtkNamedColors()
 colors.SetColor('aorta_red', [255, 30, 30, 255])
