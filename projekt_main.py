@@ -8,6 +8,7 @@ import scipy.ndimage
 from vtkmodules.util import numpy_support
 import pandas as pd
 from pathlib import Path
+import networkx as nx
 
 # Tutaj potrzebujemy tylko posegmentowanych danych do walidacji modelu
 
@@ -27,11 +28,70 @@ df = pd.DataFrame({
 print(df.head())
 
 data, header = nrrd.read(df.seg_path[1])
+#data, header = nrrd.read("../DATA/Dongyang/D1/D1.seg.nrrd")
 print(data.shape)
 
 def process(data):
     skeleton = skimage.morphology.skeletonize(data)
-    return skeleton
+    distance = scipy.ndimage.distance_transform_edt(data)
+    struct = scipy.ndimage.generate_binary_structure(3, 3)
+    points = np.argwhere(skeleton)
+    G = nx.Graph()
+    for pt in points:
+        pt = tuple(pt)
+        G.add_node(pt, thickness=distance[pt])
+        for offset in np.argwhere(struct) - 1:
+            neighbor = tuple(pt + offset)
+            if (0 <= neighbor[0] < skeleton.shape[0] and
+                0 <= neighbor[1] < skeleton.shape[1] and
+                0 <= neighbor[2] < skeleton.shape[2]):
+                if skeleton[neighbor]:
+                    G.add_edge(pt, neighbor)
+
+    # Najgrubszy punkt
+    max_thick_idx = np.argmax(distance * skeleton)
+    thickest_point = np.unravel_index(max_thick_idx, data.shape)
+    
+    # Upewnij się, że najgrubszy punkt jest w grafie
+    if thickest_point not in G.nodes:
+        skeleton_points = np.argwhere(skeleton)
+        distances_to_thick = np.linalg.norm(skeleton_points - np.array(thickest_point), axis=1)
+        closest_idx = np.argmin(distances_to_thick)
+        thickest_point = tuple(skeleton_points[closest_idx])
+
+    # Szukamy dwóch najdalszych punktów na szkielecie (diameter)
+    lengths = dict(nx.all_pairs_shortest_path_length(G))
+    max_len = 0
+    ends = (None, None)
+    found_path_through_thickest = False
+    
+    for u in lengths:
+        for v in lengths[u]:
+            if lengths[u][v] > max_len:
+                # Sprawdź, czy najgrubszy punkt leży na ścieżce między u i v
+                try:
+                    path_uv = nx.shortest_path(G, source=u, target=v)
+                    if thickest_point in path_uv:
+                        max_len = lengths[u][v]
+                        ends = (u, v)
+                        found_path_through_thickest = True
+                except nx.NetworkXNoPath:
+                    continue
+
+    # Jeśli nie znaleziono ścieżki przechodzącej przez najgrubszy punkt
+    if not found_path_through_thickest or ends[0] is None:
+        print("Nie znaleziono ścieżki przechodzącej przez najgrubszy punkt!")
+        return np.zeros(data.shape, dtype=np.uint8)
+
+    # Najdłuższa ścieżka przechodząca przez najgrubszy punkt
+    path = nx.shortest_path(G, source=ends[0], target=ends[1])
+
+    # Zamiana ścieżki na maskę 3D
+    mask = np.zeros(data.shape, dtype=np.uint8)
+    for pt in path:
+        mask[pt] = 1
+    return mask
+
 
 processed_data = process(data)
     
@@ -89,7 +149,8 @@ a_camera.Elevation(30.0)
 a_renderer.AddActor(create_actor(data, 'aorta_red', opacity=0.5))
 
 #dilate the processed data to enhance visibility
-a_renderer.AddActor(create_actor(scipy.ndimage.binary_dilation(processed_data, iterations=1), 'white', opacity=1.0))
+a_renderer.AddActor(create_actor(scipy.ndimage.binary_dilation(processed_data, iterations=3), 'white', opacity=1.0))
+a_renderer.AddActor(create_actor(scipy.ndimage.binary_dilation(skimage.morphology.skeletonize(data)), 'blue', opacity=1.0))
 
 a_renderer.SetActiveCamera(a_camera)
 a_renderer.SetBackground(colors.GetColor3d('black'))
